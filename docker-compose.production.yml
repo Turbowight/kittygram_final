@@ -1,0 +1,50 @@
+# Запуск на сервере: готовые образы скачиваются с Docker Hub (без build).
+# Логин Docker Hub подставляется из переменной DOCKERHUB_USERNAME,
+# которую нужно указать в файле .env рядом с этим файлом.
+
+volumes:
+  pg_data:
+  static:
+  media:
+
+services:
+  db:
+    image: postgres:13
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  backend:
+    image: ${DOCKERHUB_USERNAME:?Укажите DOCKERHUB_USERNAME в .env}/kittygram_backend:latest
+    env_file: .env
+    volumes:
+      - static:/backend_static
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME:?Укажите DOCKERHUB_USERNAME в .env}/kittygram_frontend:latest
+    command: cp -r /app/build/. /static/
+    volumes:
+      - static:/static
+
+  gateway:
+    image: ${DOCKERHUB_USERNAME:?Укажите DOCKERHUB_USERNAME в .env}/kittygram_gateway:latest
+    ports:
+      - 9000:80
+    volumes:
+      - static:/static
+      - media:/media
+    depends_on:
+      - backend
+      - frontend
+    restart: always
